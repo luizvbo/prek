@@ -257,6 +257,7 @@ async fn run(mut cli: Cli) -> Result<ExitStatus> {
                 args.directory,
                 args.last_commit,
                 args.show_diff_on_failure,
+                args.dry_run,
                 args.extra,
                 cli.globals.verbose > 0,
                 printer,

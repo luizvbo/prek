@@ -61,6 +61,7 @@ pub(crate) async fn run(
     directories: Vec<String>,
     last_commit: bool,
     show_diff_on_failure: bool,
+    dry_run: bool,
     extra_args: RunExtraArgs,
     verbose: bool,
     printer: Printer,
@@ -243,6 +244,7 @@ pub(crate) async fn run(
         project.config().fail_fast.unwrap_or(false),
         show_diff_on_failure,
         verbose,
+        dry_run,
         printer,
     )
     .await
@@ -471,6 +473,7 @@ impl StatusPrinter {
     const PASSED: &'static str = "Passed";
     const FAILED: &'static str = "Failed";
     const SKIPPED: &'static str = "Skipped";
+    const DRY_RUN: &'static str = "Dry Run";
     const NO_FILES: &'static str = "(no files to check)";
     const UNIMPLEMENTED: &'static str = "(unimplemented yet)";
 
@@ -489,6 +492,30 @@ impl StatusPrinter {
             80,
             name_len + 3 + Self::NO_FILES.len() + 1 + Self::SKIPPED.len(),
         )
+    }
+
+    fn write_dry_run(&self, hook: &Hook, filenames: &[&String]) -> Result<(), std::fmt::Error> {
+        let reason = if filenames.is_empty() && !hook.always_run {
+            Self::NO_FILES
+        } else {
+            ""
+        };
+        let dots = self.columns - hook.name.width_cjk() - Self::DRY_RUN.len() - reason.len() - 1;
+        let line = format!(
+            "{}{}{}{}",
+            hook.name,
+            ".".repeat(dots),
+            reason,
+            Self::DRY_RUN.style(Style::new().yellow())
+        );
+        writeln!(self.printer.stdout(), "{line}")?;
+
+        if !filenames.is_empty() {
+            for filename in filenames {
+                writeln!(self.printer.stdout(), "  - {}", filename.dimmed())?;
+            }
+        }
+        Ok(())
     }
 
     fn write_skipped(
@@ -537,6 +564,7 @@ async fn run_hooks(
     fail_fast: bool,
     show_diff_on_failure: bool,
     verbose: bool,
+    dry_run: bool,
     printer: Printer,
 ) -> Result<ExitStatus> {
     let printer = StatusPrinter::for_hooks(hooks, printer);
@@ -546,7 +574,7 @@ async fn run_hooks(
     // Hooks might modify the files, so they must be run sequentially.
     for hook in hooks {
         let (hook_success, new_diff) =
-            run_hook(hook, filter, store, diff, verbose, &printer).await?;
+            run_hook(hook, filter, store, diff, verbose, dry_run, &printer).await?;
 
         success &= hook_success;
         diff = new_diff;
@@ -599,8 +627,19 @@ async fn run_hook(
     store: &Store,
     diff: Vec<u8>,
     verbose: bool,
+    dry_run: bool,
     printer: &StatusPrinter,
 ) -> Result<(bool, Vec<u8>)> {
+    let hook_ref: &Hook = hook;
+
+    let mut filenames = filter.for_hook(hook_ref);
+
+    if dry_run {
+        // In dry-run mode, we just print what we would do and return success.
+        printer.write_dry_run(hook_ref, &filenames)?;
+        return Ok((true, diff)); // Return the original, unmodified diff
+    }
+
     let hook = match hook {
         HookToRun::Skipped(hook) => {
             printer.write_skipped(&hook.name, "", Style::new().black().on_yellow())?;
@@ -608,8 +647,6 @@ async fn run_hook(
         }
         HookToRun::ToRun(hook) => hook,
     };
-
-    let mut filenames = filter.for_hook(hook);
 
     if filenames.is_empty() && !hook.always_run {
         printer.write_skipped(

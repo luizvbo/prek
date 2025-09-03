@@ -360,6 +360,10 @@ pub(crate) struct RunArgs {
     #[arg(long)]
     pub(crate) show_diff_on_failure: bool,
 
+    /// Do not run the hooks, but print the hooks that would have been run.
+    #[arg(long)]
+    pub(crate) dry_run: bool,
+
     #[command(flatten)]
     pub(crate) extra: RunExtraArgs,
 }
