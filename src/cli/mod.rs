@@ -305,6 +305,7 @@ pub(crate) struct RunExtraArgs {
     pub(crate) rewrite_command: Option<String>,
 }
 
+#[allow(clippy::struct_excessive_bools)]
 #[derive(Debug, Clone, Default, Args)]
 pub(crate) struct RunArgs {
     /// The hook ID to run.

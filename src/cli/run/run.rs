@@ -243,8 +243,8 @@ pub(crate) async fn run(
         store,
         project.config().fail_fast.unwrap_or(false),
         show_diff_on_failure,
-        verbose,
         dry_run,
+        verbose,
         printer,
     )
     .await
@@ -557,14 +557,15 @@ impl StatusPrinter {
 }
 
 /// Run all hooks.
+#[allow(clippy::fn_params_excessive_bools)]
 async fn run_hooks(
     hooks: &[HookToRun],
     filter: &FileFilter<'_>,
     store: &Store,
     fail_fast: bool,
     show_diff_on_failure: bool,
-    verbose: bool,
     dry_run: bool,
+    verbose: bool,
     printer: Printer,
 ) -> Result<ExitStatus> {
     let printer = StatusPrinter::for_hooks(hooks, printer);

@@ -7,7 +7,6 @@ mod common;
 
 #[test]
 fn dry_run_modifies_nothing_and_succeeds() -> Result<()> {
-    // 1. Setup
     let context = TestContext::new();
     context.init_project();
     context.write_pre_commit_config(indoc::indoc! {r"
@@ -25,7 +24,7 @@ fn dry_run_modifies_nothing_and_succeeds() -> Result<()> {
 
     context.git_add(".");
 
-    // 2. Execute with --dry-run
+    // Execute with --dry-run
     cmd_snapshot!(context.filters(), context.run().arg("--dry-run"), @r#"
     success: true
     exit_code: 0
@@ -37,7 +36,7 @@ fn dry_run_modifies_nothing_and_succeeds() -> Result<()> {
     ----- stderr -----
     "#);
 
-    // 3. Assert that the file was NOT modified
+    // Assert that the file was NOT modified
     let content_after = context.read("file.txt");
     assert_eq!(
         original_content, content_after,
@@ -49,7 +48,6 @@ fn dry_run_modifies_nothing_and_succeeds() -> Result<()> {
 
 #[test]
 fn normal_run_modifies_file_and_fails() -> Result<()> {
-    // 1. Setup (same as above)
     let context = TestContext::new();
     context.init_project();
     context.write_pre_commit_config(indoc::indoc! {r"
@@ -66,7 +64,7 @@ fn normal_run_modifies_file_and_fails() -> Result<()> {
 
     context.git_add(".");
 
-    // 2. Execute a normal run (without --dry-run)
+    // Execute a normal run (without --dry-run)
     cmd_snapshot!(context.filters(), context.run(), @r#"
     success: false
     exit_code: 1
@@ -80,7 +78,7 @@ fn normal_run_modifies_file_and_fails() -> Result<()> {
     ----- stderr -----
     "#);
 
-    // 3. Assert that the file WAS modified
+    // Assert that the file WAS modified
     let content_after = context.read("file.txt");
     assert_ne!(
         original_content, content_after,
