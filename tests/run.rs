@@ -1679,6 +1679,7 @@ fn completion() {
     --last-commit	Run hooks against the last commit. Equivalent to `--from-ref HEAD~1 --to-ref HEAD`
     --hook-stage	The stage during which the hook is fired
     --show-diff-on-failure	When hooks fail, run `git diff` directly afterward
+    --dry-run	Do not run the hooks, but print the hooks that would have been run
     --config	Path to alternate config file
     --color	Whether to use color in output
     --help	Display the concise help for this command
