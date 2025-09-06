@@ -404,30 +404,6 @@ impl StatusPrinter {
         )
     }
 
-    fn write_dry_run(&self, hook: &Hook, filenames: &[String]) -> Result<(), std::fmt::Error> {
-        let reason = if filenames.is_empty() && !hook.always_run {
-            Self::NO_FILES
-        } else {
-            ""
-        };
-        let dots = self.columns - hook.name.width_cjk() - Self::DRY_RUN.len() - reason.len() - 1;
-        let line = format!(
-            "{}{}{}{}",
-            hook.name,
-            ".".repeat(dots),
-            reason,
-            Self::DRY_RUN.style(Style::new().yellow())
-        );
-        writeln!(self.printer.stdout(), "{line}")?;
-
-        if !filenames.is_empty() {
-            for filename in filenames {
-                writeln!(self.printer.stdout(), "  - {}", filename.dimmed())?;
-            }
-        }
-        Ok(())
-    }
-
     fn write_skipped(
         &self,
         hook_name: &str,
@@ -451,6 +427,10 @@ impl StatusPrinter {
             hook_name,
             ".".repeat(self.columns - hook_name.width_cjk() - Self::PASSED.len() - 1)
         )
+    }
+
+    fn write_dry_run(&self) -> Result<(), std::fmt::Error> {
+        writeln!(self.printer.stdout(), "{}", Self::DRY_RUN.on_yellow())
     }
 
     fn write_passed(&self) -> Result<(), std::fmt::Error> {
@@ -585,16 +565,6 @@ async fn run_hook(
         filenames.len()
     );
 
-    if dry_run {
-        // In dry-run mode, we just print what we would do and return success.
-        let filenames_str: Vec<String> = filenames
-            .iter()
-            .map(|p| p.to_string_lossy().to_string())
-            .collect();
-        printer.write_dry_run(hook, &filenames_str)?;
-        return Ok((true, diff)); // Return the original, unmodified diff
-    }
-
     if filenames.is_empty() && !hook.always_run {
         printer.write_skipped(
             &hook.name,
@@ -625,18 +595,35 @@ async fn run_hook(
         vec![]
     };
 
-    let (status, output) = hook
-        .language
-        .run(hook, &filenames, store)
-        .await
-        .context(format!("Failed to run hook `{hook}`"))?;
+    let (status, output) = if dry_run {
+        let mut output = Vec::new();
+        if !filenames.is_empty() {
+            writeln!(
+                output,
+                "`{}` would be run on {} files:",
+                hook,
+                filenames.len()
+            )?;
+        }
+        for filename in &filenames {
+            writeln!(output, "- {}", filename.to_string_lossy())?;
+        }
+        (0, output)
+    } else {
+        hook.language
+            .run(hook, &filenames, store)
+            .await
+            .context(format!("Failed to run hook `{hook}`"))?
+    };
 
     let duration = start.elapsed();
 
     let new_diff = git::get_diff().await?;
     let file_modified = diff != new_diff;
     let success = status == 0 && !file_modified;
-    if success {
+    if dry_run {
+        printer.write_dry_run()?;
+    } else if success {
         printer.write_passed()?;
     } else {
         printer.write_failed()?;
