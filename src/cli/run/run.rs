@@ -587,7 +587,10 @@ async fn run_hook(
 
     if dry_run {
         // In dry-run mode, we just print what we would do and return success.
-        let filenames_str: Vec<String> = filenames.iter().map(|p| p.to_string_lossy().to_string()).collect();
+        let filenames_str: Vec<String> = filenames
+            .iter()
+            .map(|p| p.to_string_lossy().to_string())
+            .collect();
         printer.write_dry_run(hook, &filenames_str)?;
         return Ok((true, diff)); // Return the original, unmodified diff
     }
