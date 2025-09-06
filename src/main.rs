@@ -1,5 +1,4 @@
 use std::fmt::Write;
-use std::path::Path;
 use std::process::ExitCode;
 use std::str::FromStr;
 use std::sync::Mutex;
@@ -9,9 +8,10 @@ use anyhow::{Context, Result};
 use clap::{CommandFactory, Parser};
 use clap_complete::CompleteEnv;
 use owo_colors::OwoColorize;
+use tracing::debug;
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, error};
 use tracing_subscriber::filter::Directive;
+use tracing_subscriber::fmt::format::FmtSpan;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 use tracing_subscriber::{EnvFilter, Layer};
@@ -20,7 +20,6 @@ use crate::cleanup::cleanup;
 use crate::cli::{Cli, Command, ExitStatus};
 #[cfg(feature = "self-update")]
 use crate::cli::{SelfCommand, SelfNamespace, SelfUpdateArgs};
-use crate::git::GIT_ROOT;
 use crate::printer::Printer;
 use crate::run::USE_COLOR;
 use crate::store::STORE;
@@ -77,6 +76,7 @@ fn setup_logging(level: Level) -> Result<()> {
         .without_time()
         .with_ansi(*USE_COLOR);
     let stderr_layer = tracing_subscriber::fmt::layer()
+        .with_span_events(FmtSpan::CLOSE)
         .event_format(stderr_format)
         .with_writer(anstream::stderr)
         .with_filter(stderr_filter);
@@ -93,6 +93,7 @@ fn setup_logging(level: Level) -> Result<()> {
         .with_target(false)
         .with_ansi(false);
     let file_layer = tracing_subscriber::fmt::layer()
+        .with_span_events(FmtSpan::CLOSE)
         .event_format(file_format)
         .with_writer(log_file)
         .with_filter(EnvFilter::new("prek=trace"));
@@ -101,60 +102,6 @@ fn setup_logging(level: Level) -> Result<()> {
         .with(stderr_layer)
         .with(file_layer)
         .init();
-
-    Ok(())
-}
-
-fn should_change_cwd(cli: &Cli) -> bool {
-    cli.command.as_ref().is_some_and(|cmd| {
-        !matches!(
-            cmd,
-            Command::Clean
-                | Command::GC
-                | Command::InitTemplateDir(_)
-                | Command::SampleConfig(_)
-                | Command::ValidateConfig(_)
-                | Command::ValidateManifest(_)
-        )
-    })
-}
-
-/// Adjusts relative paths in the CLI arguments to be relative to the new working directory.
-fn adjust_relative_paths(cli: &mut Cli, new_cwd: &Path) -> Result<()> {
-    if let Some(path) = &mut cli.globals.config {
-        if path.exists() {
-            *path = std::path::absolute(&*path)?;
-        }
-    }
-
-    // Adjust path arguments for `run` and `try-repo` commands.
-    if let Some(Command::Run(ref mut args) | Command::TryRepo(ref mut args)) = cli.command {
-        args.files = args
-            .files
-            .iter()
-            .map(|path| {
-                fs::relative_to(std::path::absolute(path)?, new_cwd)
-                    .map(|p| p.to_string_lossy().to_string())
-            })
-            .collect::<Result<Vec<String>, std::io::Error>>()?;
-        args.directory = args
-            .directory
-            .iter()
-            .map(|path| {
-                fs::relative_to(std::path::absolute(path)?, new_cwd)
-                    .map(|p| p.to_string_lossy().to_string())
-            })
-            .collect::<Result<Vec<String>, std::io::Error>>()?;
-        args.extra.commit_msg_filename = args
-            .extra
-            .commit_msg_filename
-            .as_ref()
-            .map(|path| {
-                fs::relative_to(std::path::absolute(path)?, new_cwd)
-                    .map(|p| p.to_string_lossy().to_string())
-            })
-            .transpose()?;
-    }
 
     Ok(())
 }
@@ -190,22 +137,11 @@ async fn run(mut cli: Cli) -> Result<ExitStatus> {
         cli.command = Some(Command::Run(Box::new(cli.run_args.clone())));
     }
 
-    debug!("prek: {}", version::version());
-
-    // Adjust relative paths before changing the working directory.
-    if should_change_cwd(&cli) {
-        match GIT_ROOT.as_ref() {
-            Ok(root) => {
-                debug!("Git root: {}", root.display());
-                adjust_relative_paths(&mut cli, root)?;
-
-                std::env::set_current_dir(root)?;
-            }
-            Err(err) => {
-                error!("Failed to find git root: {}", err);
-            }
-        }
+    if let Some(dir) = cli.globals.cd.as_ref() {
+        std::env::set_current_dir(dir)?;
     }
+
+    debug!("prek: {}", version::version());
 
     macro_rules! show_settings {
         ($arg:expr) => {
@@ -248,7 +184,8 @@ async fn run(mut cli: Cli) -> Result<ExitStatus> {
 
             cli::run(
                 cli.globals.config,
-                args.hook_ids,
+                args.includes,
+                args.skips,
                 args.hook_stage,
                 args.from_ref,
                 args.to_ref,
@@ -269,11 +206,12 @@ async fn run(mut cli: Cli) -> Result<ExitStatus> {
 
             cli::list(
                 cli.globals.config,
-                cli.globals.verbose > 0,
-                args.hook_ids,
+                args.includes,
+                args.skips,
                 args.hook_stage,
                 args.language,
                 args.output_format,
+                cli.globals.verbose > 0,
                 printer,
             )
             .await

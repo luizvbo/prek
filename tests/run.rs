@@ -259,24 +259,28 @@ fn multiple_hook_ids() {
     "#);
 
     // Hook-id matches nothing
-    cmd_snapshot!(context.filters(), context.run().arg("nonexistent-hook"), @r#"
+    cmd_snapshot!(context.filters(), context.run().arg("nonexistent-hook"), @r"
     success: false
     exit_code: 1
     ----- stdout -----
 
     ----- stderr -----
-    error: No hook found with id `nonexistent-hook` in stage `pre-commit`
-    "#);
+    warning: selector `nonexistent-hook` did not match any hooks
+    error: No hooks found after filtering with the given selectors
+    ");
 
     // Multiple hook_ids match nothing
-    cmd_snapshot!(context.filters(), context.run().arg("nonexistent-hook").arg("nonexistent-hook").arg("nonexistent-hook-2"), @r#"
+    cmd_snapshot!(context.filters(), context.run().arg("nonexistent-hook").arg("nonexistent-hook").arg("nonexistent-hook-2"), @r"
     success: false
     exit_code: 1
     ----- stdout -----
 
     ----- stderr -----
-    error: No hooks found with ids `nonexistent-hook`, `nonexistent-hook-2` in stage `pre-commit`
-    "#);
+    warning: the following selectors did not match any hooks or projects:
+      - `nonexistent-hook`
+      - `nonexistent-hook-2`
+    error: No hooks found after filtering with the given selectors
+    ");
 
     // Hook-id matches one hook
     cmd_snapshot!(context.filters(), context.run().arg("hook2"), @r#"
@@ -289,7 +293,7 @@ fn multiple_hook_ids() {
     "#);
 
     // Multiple hook-ids with mixed results (some exist, some don't)
-    cmd_snapshot!(context.filters(), context.run().arg("hook1").arg("nonexistent").arg("hook2"), @r#"
+    cmd_snapshot!(context.filters(), context.run().arg("hook1").arg("nonexistent").arg("hook2"), @r"
     success: true
     exit_code: 0
     ----- stdout -----
@@ -297,11 +301,11 @@ fn multiple_hook_ids() {
     Second Hook..............................................................Passed
 
     ----- stderr -----
-    warning: Ignored non-existent hook ID: `nonexistent`
-    "#);
+    warning: selector `nonexistent` did not match any hooks
+    ");
 
     // Multiple valid hook-ids
-    cmd_snapshot!(context.filters(), context.run().arg("hook1").arg("hook2").arg("nonexistent-hook"), @r#"
+    cmd_snapshot!(context.filters(), context.run().arg("hook1").arg("hook2").arg("nonexistent-hook"), @r"
     success: true
     exit_code: 0
     ----- stdout -----
@@ -309,8 +313,8 @@ fn multiple_hook_ids() {
     Second Hook..............................................................Passed
 
     ----- stderr -----
-    warning: Ignored non-existent hook ID: `nonexistent-hook`
-    "#);
+    warning: selector `nonexistent-hook` did not match any hooks
+    ");
 
     // Multiple hook-ids with some duplicates and aliases
     cmd_snapshot!(context.filters(), context.run().arg("hook1").arg("shared-name").arg("hook1"), @r#"
@@ -349,7 +353,7 @@ fn config_not_staged() -> Result<()> {
 
     cmd_snapshot!(context.filters(), context.run().arg("invalid-hook-id"), @r#"
     success: false
-    exit_code: 1
+    exit_code: 2
     ----- stdout -----
 
     ----- stderr -----
@@ -457,33 +461,30 @@ fn skips() {
     "#});
     context.git_add(".");
 
-    cmd_snapshot!(context.filters(), context.run().env("SKIP", "end-of-file-fixer"), @r#"
+    cmd_snapshot!(context.filters(), context.run().env("SKIP", "end-of-file-fixer"), @r"
     success: false
     exit_code: 1
     ----- stdout -----
     trailing-whitespace......................................................Failed
     - hook id: trailing-whitespace
     - exit code: 1
-    fix end of files........................................................Skipped
     check json...............................................................Failed
     - hook id: check-json
     - exit code: 1
 
     ----- stderr -----
-    "#);
+    ");
 
-    cmd_snapshot!(context.filters(), context.run().env("SKIP", "trailing-whitespace,end-of-file-fixer"), @r#"
+    cmd_snapshot!(context.filters(), context.run().env("SKIP", "trailing-whitespace,end-of-file-fixer"), @r"
     success: false
     exit_code: 1
     ----- stdout -----
-    trailing-whitespace.....................................................Skipped
-    fix end of files........................................................Skipped
     check json...............................................................Failed
     - hook id: check-json
     - exit code: 1
 
     ----- stderr -----
-    "#);
+    ");
 }
 
 /// Run hooks with matched `stage`.
@@ -801,6 +802,18 @@ fn subdirectory() -> Result<()> {
     ----- stderr -----
     "#);
 
+    cmd_snapshot!(context.filters(), context.run().arg("--cd").arg(&*child).arg("--files").arg("file.txt"), @r#"
+    success: false
+    exit_code: 1
+    ----- stdout -----
+    trailing-whitespace......................................................Failed
+    - hook id: trailing-whitespace
+    - exit code: 1
+      foo/bar/baz/file.txt
+
+    ----- stderr -----
+    "#);
+
     Ok(())
 }
 
@@ -1034,7 +1047,7 @@ fn merge_conflicts() -> Result<()> {
     // Abort on merge conflicts.
     cmd_snapshot!(context.filters(), context.run(), @r#"
     success: false
-    exit_code: 1
+    exit_code: 2
     ----- stdout -----
 
     ----- stderr -----
@@ -1411,6 +1424,18 @@ fn run_directory() -> Result<()> {
     ----- stderr -----
     "#);
 
+    cmd_snapshot!(context.filters(), context.run().arg("--cd").arg("dir1").arg("--directory").arg("."), @r#"
+    success: true
+    exit_code: 0
+    ----- stdout -----
+    directory................................................................Passed
+    - hook id: directory
+    - duration: [TIME]
+      dir1/file.txt
+
+    ----- stderr -----
+    "#);
+
     Ok(())
 }
 
@@ -1652,7 +1677,7 @@ fn completion() {
     ----- stderr -----
     "#);
 
-    cmd_snapshot!(context.filters(), context.run().env("COMPLETE", "fish").arg("--").arg("prek").arg(""), @r#"
+    cmd_snapshot!(context.filters(), context.run().env("COMPLETE", "fish").arg("--").arg("prek").arg(""), @r"
     success: true
     exit_code: 0
     ----- stdout -----
@@ -1671,6 +1696,7 @@ fn completion() {
     try-repo	Try the pre-commit hooks in the current repo
     self	`prek` self management
     hook	a useful hook
+    --skip	Skip the specified hooks or projects
     --all-files	Run on all files in the repo
     --files	Specific filenames to run hooks on
     --directory	Run hooks on all files in the specified directories
@@ -1681,6 +1707,7 @@ fn completion() {
     --show-diff-on-failure	When hooks fail, run `git diff` directly afterward
     --dry-run	Do not run the hooks, but print the hooks that would have been run
     --config	Path to alternate config file
+    --cd	Change to directory before running
     --color	Whether to use color in output
     --help	Display the concise help for this command
     --no-progress	Hide all progress outputs
@@ -1689,7 +1716,7 @@ fn completion() {
     --version	Display the prek version
 
     ----- stderr -----
-    "#);
+    ");
 
     cmd_snapshot!(context.filters(), context.run().env("COMPLETE", "fish").arg("--").arg("prek").arg("run"), @r#"
     success: true
