@@ -1,3 +1,5 @@
+use anyhow::Context;
+use std::collections::HashSet;
 use std::hash::{DefaultHasher, Hash, Hasher};
 use std::io::Write;
 use std::path::{Path, PathBuf};
@@ -58,6 +60,46 @@ impl Store {
 
     pub(crate) fn path(&self) -> &Path {
         self.path.as_ref()
+    }
+
+    fn configs_path(&self) -> PathBuf {
+        self.path.join("configs.json")
+    }
+
+    /// Mark a configuration file as used by adding its path to our tracking file.
+    pub(crate) fn mark_config_used(&self, path: &Path) -> Result<()> {
+        if !path.exists() {
+            return Ok(());
+        }
+
+        let canonical_path = path.canonicalize()?;
+        let mut configs = self.select_all_configs()?;
+        if configs.insert(canonical_path) {
+            let content = serde_json::to_string_pretty(&configs)?;
+            fs_err::write(self.configs_path(), content)?;
+        }
+        Ok(())
+    }
+
+    /// Read all known configuration file paths.
+    pub(crate) fn select_all_configs(&self) -> Result<HashSet<PathBuf>> {
+        let path = self.configs_path();
+        if !path.exists() {
+            return Ok(HashSet::new());
+        }
+        let content = fs_err::read_to_string(path)?;
+        if content.trim().is_empty() {
+            return Ok(HashSet::new());
+        }
+        serde_json::from_str(&content).context("Failed to parse configs.json")
+    }
+
+    /// Delete a repository from the store.
+    pub(crate) fn delete_repo(&self, path: &Path) -> Result<()> {
+        if path.exists() {
+            fs_err::remove_dir_all(path)?;
+        }
+        Ok(())
     }
 
     /// Initialize the store.
@@ -141,7 +183,7 @@ impl Store {
     }
 
     /// Returns the path to the cloned repo.
-    fn repo_path(&self, repo: &RemoteRepo) -> PathBuf {
+    pub fn repo_path(&self, repo: &RemoteRepo) -> PathBuf {
         let mut hasher = DefaultHasher::new();
         repo.hash(&mut hasher);
         let digest = to_hex(hasher.finish());

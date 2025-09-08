@@ -236,6 +236,7 @@ async fn run(mut cli: Cli) -> Result<ExitStatus> {
             .await
         }
         Command::Clean => cli::clean(printer),
+        Command::GC => cli::gc(printer),
         Command::ValidateConfig(args) => {
             show_settings!(args);
 

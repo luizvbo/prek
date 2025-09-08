@@ -1,7 +1,3 @@
-use std::fmt::Write;
-use std::path::{Path, PathBuf};
-use std::process::Stdio;
-
 use anyhow::{Context, Result};
 use bstr::ByteSlice;
 use fancy_regex::Regex;
@@ -12,6 +8,9 @@ use rustc_hash::FxHashMap;
 use rustc_hash::FxHashSet;
 use serde::Serializer;
 use serde::ser::SerializeMap;
+use std::fmt::Write;
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use tracing::trace;
 
 use crate::cli::ExitStatus;
@@ -20,6 +19,7 @@ use crate::config::{MANIFEST_FILE, RemoteRepo, Repo};
 use crate::fs::CWD;
 use crate::printer::Printer;
 use crate::run::CONCURRENCY;
+use crate::store::STORE;
 use crate::workspace::{Project, Workspace};
 use crate::{config, git};
 
@@ -46,6 +46,12 @@ pub(crate) async fn auto_update(
     let workspace_root = Workspace::find_root(config.as_deref(), &CWD)?;
     // TODO: support selectors?
     let workspace = Workspace::discover(workspace_root, config, None, true)?;
+
+    // Mark all configs as used
+    let store = STORE.as_ref()?;
+    for project in workspace.projects() {
+        store.mark_config_used(project.config_file())?;
+    }
 
     // Collect repos and deduplicate by RemoteRepo
     #[allow(clippy::mutable_key_type)]

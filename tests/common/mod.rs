@@ -107,6 +107,11 @@ impl TestContext {
         patterns
     }
 
+    /// Get the temporary directory for the test context.
+    pub fn temp_dir(&self) -> &ChildPath {
+        &self.temp_dir
+    }
+
     /// Read a file in the temporary directory
     pub fn read(&self, file: impl AsRef<Path>) -> String {
         fs_err::read_to_string(self.temp_dir.join(&file))
@@ -221,6 +226,16 @@ impl TestContext {
             .success();
     }
 
+    /// Initialize a git repository at a specific path.
+    pub fn init_repo_at(&self, path: &Path) {
+        Command::new("git")
+            .arg("init")
+            .arg("--initial-branch=master")
+            .current_dir(path)
+            .assert()
+            .success();
+    }
+
     /// Configure git user and email.
     pub fn configure_git_author(&self) {
         Command::new("git")
@@ -235,6 +250,24 @@ impl TestContext {
             .arg("user.email")
             .arg("test@prek.dev")
             .current_dir(&self.temp_dir)
+            .assert()
+            .success();
+    }
+
+    /// Configure git author at a specific path.
+    pub fn configure_git_author_at(&self, path: &Path) {
+        Command::new("git")
+            .arg("config")
+            .arg("user.name")
+            .arg("Prek Test")
+            .current_dir(path)
+            .assert()
+            .success();
+        Command::new("git")
+            .arg("config")
+            .arg("user.email")
+            .arg("test@prek.dev")
+            .current_dir(path)
             .assert()
             .success();
     }
@@ -260,6 +293,16 @@ impl TestContext {
             .success();
     }
 
+    /// Run `git add .` at a specific path.
+    pub fn git_add_all_at(&self, path: &Path) {
+        Command::new("git")
+            .arg("add")
+            .arg(".")
+            .current_dir(path)
+            .assert()
+            .success();
+    }
+
     /// Run `git commit`.
     pub fn git_commit(&self, message: &str) {
         Command::new("git")
@@ -267,6 +310,18 @@ impl TestContext {
             .arg("-m")
             .arg(message)
             .current_dir(&self.temp_dir)
+            .assert()
+            .success();
+    }
+
+    /// Run `git commit` at a specific path.
+    pub fn git_commit_at(&self, path: &Path, message: &str) {
+        self.configure_git_author_at(path);
+        Command::new("git")
+            .arg("commit")
+            .arg("-m")
+            .arg(message)
+            .current_dir(path)
             .assert()
             .success();
     }
@@ -294,6 +349,17 @@ impl TestContext {
         if file_path.exists() {
             fs_err::remove_file(file_path).unwrap();
         }
+    }
+
+    /// Get the current revision hash at a specific path.
+    pub fn get_rev_at(&self, path: &Path) -> String {
+        let output = Command::new("git")
+            .arg("rev-parse")
+            .arg("HEAD")
+            .current_dir(path)
+            .output()
+            .expect("Failed to get git revision");
+        String::from_utf8(output.stdout).unwrap().trim().to_string()
     }
 
     /// Run `git clean`.

@@ -78,6 +78,12 @@ pub(crate) async fn run(
     let selectors = Selectors::load(&includes, &skips, &workspace_root)?;
     let mut workspace = Workspace::discover(workspace_root, config, Some(&selectors), refresh)?;
 
+    // Mark all configs as used
+    let store = STORE.as_ref()?;
+    for project in workspace.projects() {
+        store.mark_config_used(project.config_file())?;
+    }
+
     if should_stash {
         workspace.check_configs_staged().await?;
     }
