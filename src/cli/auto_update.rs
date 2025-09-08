@@ -1,5 +1,6 @@
 use anyhow::{Context, Result};
 use bstr::ByteSlice;
+use constants::MANIFEST_FILE;
 use fancy_regex::Regex;
 use futures::StreamExt;
 use itertools::Itertools;
@@ -15,7 +16,7 @@ use tracing::trace;
 
 use crate::cli::ExitStatus;
 use crate::cli::reporter::AutoUpdateReporter;
-use crate::config::{MANIFEST_FILE, RemoteRepo, Repo};
+use crate::config::{RemoteRepo, Repo};
 use crate::fs::CWD;
 use crate::printer::Printer;
 use crate::run::CONCURRENCY;
