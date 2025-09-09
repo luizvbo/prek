@@ -1,7 +1,9 @@
 [package]
 name = "constants"
 version = "0.0.1"
+repository = { workspace = true }
 edition = { workspace = true }
+license = { workspace = true }
 
 [dependencies]
 tracing = { workspace = true }

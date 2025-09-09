@@ -101,7 +101,6 @@ const STYLES: Styles = Styles::styled()
 #[derive(Parser)]
 #[command(
     name = "prek",
-    author,
     long_version = crate::version::version(),
     about = "Better pre-commit, re-engineered in Rust"
 )]
@@ -124,13 +123,12 @@ pub(crate) struct Cli {
     pub(crate) globals: GlobalArgs,
 }
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Args)]
 #[command(next_help_heading = "Global options", next_display_order = 1000)]
-#[command(disable_help_flag = true, disable_version_flag = true)]
 #[allow(clippy::struct_excessive_bools)]
 pub(crate) struct GlobalArgs {
     /// Path to alternate config file.
-    #[arg(global = true, short, long, value_parser)]
+    #[arg(global = true, short, long)]
     pub(crate) config: Option<PathBuf>,
 
     /// Change to directory before running.
@@ -159,7 +157,7 @@ pub(crate) struct GlobalArgs {
 
     /// Display the concise help for this command.
     #[arg(global = true, short, long, action = clap::ArgAction::HelpShort)]
-    help: Option<bool>,
+    help: (),
 
     /// Hide all progress outputs.
     ///
@@ -177,7 +175,7 @@ pub(crate) struct GlobalArgs {
 
     /// Display the prek version.
     #[arg(global = true, short = 'V', long, action = clap::ArgAction::Version)]
-    version: Option<bool>,
+    version: (),
 
     /// Show the resolved settings for the current command.
     ///
