@@ -11,10 +11,9 @@ use tracing::debug;
 
 pub(crate) fn gc(printer: Printer) -> Result<ExitStatus> {
     let store = STORE.as_ref()?;
-    // Use the synchronous lock
     let _lock = store.lock()?;
 
-    // 1. Get all cloned repos from the store, handling non-existent directory
+    // Get all cloned repos from the store, handling non-existent directory
     let all_repos_on_disk = if store.repos_dir().exists() {
         store
             .repos_dir()
@@ -26,14 +25,14 @@ pub(crate) fn gc(printer: Printer) -> Result<ExitStatus> {
         HashSet::new()
     };
 
-    // 2. Get all "used" configs and filter out those that no longer exist
+    // Get all "used" configs and filter out those that no longer exist
     let used_configs = store.select_all_configs()?;
     let live_configs: Vec<Config> = used_configs
         .into_iter()
         .filter_map(|path| crate::config::read_config(&path).ok())
         .collect();
 
-    // 3. Determine the set of all repos that are actually in use
+    // Determine the set of all repos that are actually in use
     let mut used_repo_paths = HashSet::new();
     for config in &live_configs {
         for repo in &config.repos {
@@ -44,13 +43,13 @@ pub(crate) fn gc(printer: Printer) -> Result<ExitStatus> {
         }
     }
 
-    // 4. Determine which repos are unused
+    // Determine which repos are unused
     let unused_repos: Vec<PathBuf> = all_repos_on_disk
         .difference(&used_repo_paths)
         .cloned()
         .collect();
 
-    // 5. Delete unused repos
+    // Delete unused repos
     for repo_path in &unused_repos {
         debug!("Removing unused repo: {}", repo_path.display());
         // Use a synchronous delete
