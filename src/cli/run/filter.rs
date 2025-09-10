@@ -94,6 +94,7 @@ pub(crate) struct FileFilter<'a> {
 }
 
 impl<'a> FileFilter<'a> {
+    // Here, `filenames` are paths relative to the workspace root.
     pub(crate) fn for_project<I>(filenames: I, project: &'a Project) -> Self
     where
         I: Iterator<Item = &'a PathBuf> + Send,
@@ -158,10 +159,13 @@ impl<'a> FileFilter<'a> {
     pub(crate) fn for_hook(&self, hook: &Hook) -> Vec<&Path> {
         // Filter by hook `files` and `exclude` patterns.
         let filter = FilenameFilter::for_hook(hook);
-        let filenames = self
-            .filenames
-            .par_iter()
-            .filter(|filename| filter.filter(filename));
+        let filenames = self.filenames.par_iter().filter(|filename| {
+            if let Ok(stripped) = filename.strip_prefix(self.filename_prefix) {
+                filter.filter(stripped)
+            } else {
+                false
+            }
+        });
 
         // Filter by hook `types`, `types_or` and `exclude_types`.
         let filter = FileTagFilter::for_hook(hook);

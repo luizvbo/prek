@@ -97,13 +97,13 @@ prek provides a standalone installer script to download and install the tool,
 On Linux and macOS:
 
 ```bash
-curl --proto '=https' --tlsv1.2 -LsSf https://github.com/j178/prek/releases/download/v0.2.0-alpha.3/prek-installer.sh | sh
+curl --proto '=https' --tlsv1.2 -LsSf https://github.com/j178/prek/releases/download/v0.2.0-alpha.4/prek-installer.sh | sh
 ```
 
 On Windows:
 
 ```powershell
-powershell -ExecutionPolicy ByPass -c "irm https://github.com/j178/prek/releases/download/v0.2.0-alpha.3/prek-installer.ps1 | iex"
+powershell -ExecutionPolicy ByPass -c "irm https://github.com/j178/prek/releases/download/v0.2.0-alpha.4/prek-installer.ps1 | iex"
 ```
 </details>
 
@@ -128,7 +128,7 @@ pipx install prek
 <details>
 <summary>Homebrew</summary>
 
-```console
+```bash
 brew install prek
 ```
 </details>
@@ -138,7 +138,7 @@ brew install prek
 
 To use prek with [mise](https://mise.jdx.dev):
 
-```console
+```bash
 mise use prek
 ```
 </details>
@@ -148,7 +148,7 @@ mise use prek
 
 Build from source using Cargo:
 
-```console
+```bash
 cargo install --locked --git https://github.com/j178/prek
 ```
 </details>
@@ -161,8 +161,8 @@ prek release artifacts can be downloaded directly from the [GitHub releases](htt
 
 If installed via the standalone installer, prek can update itself to the latest version:
 
-```console
-$ prek self update
+```bash
+prek self update
 ```
 
 ## Acknowledgements
